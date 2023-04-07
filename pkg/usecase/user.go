@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 
 	domain "github.com/SethukumarJ/CashierX-Auth-Service/pkg/domain"
@@ -59,8 +61,36 @@ func HashPassword(password string) string {
 	return string(hash)
 }
 
-// func (c *userUseCase) Delete(ctx context.Context, user domain.Users) error {
-// 	err := c.userRepo.Delete(ctx, user)
+// / VerifyUser verifies the user credentials
+func (c *userUseCase) VerifyUser(ctx context.Context, email string, password string) error {
 
-// 	return err
-// }
+	_, err := c.userRepo.FindByName(ctx, email)
+
+	if err != nil {
+		fmt.Println(errors.New("failed to login. check your email"))
+		return errors.New("failed to login. check your email")
+	}
+	pswd, err := c.userRepo.FindPassword(ctx, email)
+	if err != nil {
+		return errors.New("failed to login. check your email or password")
+	}
+	isValidPassword := VerifyPassword(pswd, []byte(password))
+	if !isValidPassword {
+		return errors.New("failed to login. check your credential")
+	}
+
+	return nil
+}
+
+func VerifyPassword(hashedPwd string, plainPwd []byte) bool {
+	// Since we'll be getting the hashed password from the DB it
+	// will be a string so we'll need to convert it to a byte slice
+	byteHash := []byte(hashedPwd)
+	err := bcrypt.CompareHashAndPassword(byteHash, plainPwd)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	return true
+}

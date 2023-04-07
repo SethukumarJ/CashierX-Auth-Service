@@ -13,6 +13,17 @@ type userDatabase struct {
 	DB *gorm.DB
 }
 
+// FindPassword implements interfaces.UserRepository
+func (c *userDatabase) FindPassword(ctx context.Context, email string) (string, error) {
+	var user domain.Users
+	err := c.DB.Where("email = ?", email).First(&user).Error
+	if err != nil {
+		return "", err
+	}
+
+	return user.Password, nil
+}
+
 // FindByName implements interfaces.UserRepository
 func (c *userDatabase) FindByName(ctx context.Context, email string) (domain.Users, error) {
 	var user domain.Users

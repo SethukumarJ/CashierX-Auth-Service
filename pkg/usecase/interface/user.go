@@ -12,4 +12,5 @@ type UserUseCase interface {
 	FindByName(ctx context.Context, email string) (domain.Users, error)
 	Register(ctx context.Context, user domain.Users) (domain.Users, error)
 	Delete(ctx context.Context, user domain.Users) error
+	VerifyUser(ctx context.Context, email string, password string) error
 }

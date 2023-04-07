@@ -17,6 +17,7 @@ import (
 
 type UserHandler struct {
 	userUseCase services.UserUseCase
+	jwtUsecase  services.JWTUsecase
 }
 
 type Response struct {
@@ -25,9 +26,10 @@ type Response struct {
 	Password string `copier:"must"`
 }
 
-func NewUserHandler(usecase services.UserUseCase) *UserHandler {
+func NewUserHandler(usecase services.UserUseCase,jwtusecase services.JWTUsecase) *UserHandler {
 	return &UserHandler{
 		userUseCase: usecase,
+		jwtUsecase: jwtusecase,
 	}
 }
 
@@ -62,88 +64,44 @@ func (cr *UserHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*
 	}, nil
 }
 
-// save godoc
-// @summary Get all users
-// @description register user
-// @tags users
-// @id register
-// @param RegisterUser body domain.Users{} true "user signup"
-// @produce json
-// @Router /api/users [post]
-// @response 200 {object} []Response "OK"
-func (cr *UserHandler) Save(c *gin.Context) {
-	var user domain.Users
 
-	if err := c.BindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err})
-		return
-	}
 
-	user, err := cr.userUseCase.Register(c.Request.Context(), user)
-
-	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
-	} else {
-		response := Response{}
-		copier.Copy(&response, &user)
-
-		c.JSON(http.StatusOK, response)
-	}
-}
-
-// func (cr *UserHandler) Delete(c *gin.Context) {
-// 	paramsId := c.Param("id")
-// 	id, err := strconv.Atoi(paramsId)
-
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{
-// 			"error": "Cannot parse id",
-// 		})
-// 		return
-// 	}
-
-// 	ctx := c.Request.Context()
-// 	user, err := cr.userUseCase.FindByID(ctx, uint(id))
-
-// 	if err != nil {
-// 		c.AbortWithStatus(http.StatusNotFound)
-// 	}
-
-// 	if user == (domain.Users{}) {
-// 		c.JSON(http.StatusBadRequest, gin.H{
-// 			"error": "User is not booking yet",
-// 		})
-// 		return
-// 	}
-
-// 	cr.userUseCase.Delete(ctx, user)
-
-// 	c.JSON(http.StatusOK, gin.H{"message": "User is deleted successfully"})
-// }
 
 func (cr *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	// var user domain.Users
+	
+	err := cr.userUseCase.VerifyUser(ctx, req.Email, req.Password)
+	if err != nil {
+		return &pb.LoginResponse{
+			Status: http.StatusUnauthorized,
+			Error:  fmt.Sprintf("failed to verify user: %s", err.Error()),
+		}, nil
+	}
 
-	// if result := s.H.DB.Where(&models.User{Email: req.Email}).First(&user); result.Error != nil {
-	// 	return &pb.LoginResponse{
-	// 		Status: http.StatusNotFound,
-	// 		Error:  "User not found",
-	// 	}, nil
-	// }
-
-	// match := utils.CheckPasswordHash(req.Password, user.Password)
-
-	// if !match {
-	// 	return &pb.LoginResponse{
-	// 		Status: http.StatusNotFound,
-	// 		Error:  "User not found",
-	// 	}, nil
-	// }
-
-	// token, _ := s.Jwt.GenerateToken(user)
-
+	user, err := cr.userUseCase.FindByName(ctx, req.Email)
+	if err != nil {
+		return &pb.LoginResponse{
+			Status: http.StatusInternalServerError,
+			Error:  fmt.Sprintf("error while getting user from db: %s", err.Error()),
+		}, nil
+	}
+	accesstoken, err := cr.jwtUsecase.GenerateAccessToken(uint(user.Id),user.Email)
+	if err != nil {
+		return &pb.LoginResponse{
+			Status: http.StatusUnauthorized,
+			Error: fmt.Sprint(errors.New("failed to generate access token")),
+		}, errors.New(err.Error())
+	}
+	refreshtoken, err := cr.jwtUsecase.GenerateRefreshToken(uint(user.Id),user.Email)
+	if err != nil {
+		return &pb.LoginResponse{
+			Status: http.StatusUnauthorized,
+			Error: fmt.Sprint(errors.New("failed to generate refresh token")),
+		}, errors.New(err.Error())
+	}
 	return &pb.LoginResponse{
 		Status: http.StatusOK,
+		AccessToken: accesstoken,
+		RefresshToken: refreshtoken,
 	}, nil
 }
 

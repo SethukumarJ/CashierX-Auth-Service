@@ -12,5 +12,6 @@ type UserRepository interface {
 	FindByName(ctx context.Context, email string) (domain.Users, error)
 	Save(ctx context.Context, user domain.Users) (domain.Users, error)
 	Delete(ctx context.Context, user domain.Users) error
+	FindPassword(ctx context.Context, email string) (string, error)
 	
 }
