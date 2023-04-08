@@ -56,8 +56,8 @@ func (c *userDatabase) Save(ctx context.Context, user domain.Users) (domain.User
 	return user, err
 }
 
-func (c *userDatabase) Delete(ctx context.Context, user domain.Users) error {
-	err := c.DB.Delete(&user).Error
-
+func (c *userDatabase) Delete(ctx context.Context, id int64) error {
+	user := &domain.Users{Id: id}
+	err := c.DB.Delete(user).Error
 	return err
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/copier"
+	"gorm.io/gorm"
 
 	domain "github.com/SethukumarJ/CashierX-Auth-Service/pkg/domain"
 	"github.com/SethukumarJ/CashierX-Auth-Service/pkg/pb"
@@ -104,7 +105,7 @@ func (cr *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Log
 
 func (cr *UserHandler) Validate(ctx context.Context, req *pb.ValidateRequest) (*pb.ValidateResponse, error) {
 	ok, claims := cr.jwtUsecase.VerifyToken(req.Token)
-	fmt.Println("claims",claims)
+	fmt.Println("claims", claims)
 	if !ok {
 		return &pb.ValidateResponse{
 			Status: http.StatusUnauthorized,
@@ -112,9 +113,7 @@ func (cr *UserHandler) Validate(ctx context.Context, req *pb.ValidateRequest) (*
 		}, nil
 	}
 
-	
-
-	user, err := cr.userUseCase.FindByName(ctx,claims.UserName)
+	user, err := cr.userUseCase.FindByName(ctx, claims.UserName)
 
 	if err != nil {
 		return &pb.ValidateResponse{
@@ -131,7 +130,7 @@ func (cr *UserHandler) Validate(ctx context.Context, req *pb.ValidateRequest) (*
 }
 
 func (cr *UserHandler) TokenRefresh(ctx context.Context, req *pb.TokenRefreshRequest) (*pb.TokenRefreshResponse, error) {
-	
+
 	ok, claims := cr.jwtUsecase.VerifyToken(req.Token)
 	if !ok {
 		return &pb.TokenRefreshResponse{
@@ -142,56 +141,55 @@ func (cr *UserHandler) TokenRefresh(ctx context.Context, req *pb.TokenRefreshReq
 
 	fmt.Println("//////////////////////////////////", claims.UserName)
 	accesstoken, err := cr.jwtUsecase.GenerateAccessToken(claims.UserId, claims.UserName)
-	
+
 	if err != nil {
 		return &pb.TokenRefreshResponse{
 			Status: http.StatusUnauthorized,
 			Error:  fmt.Sprint(errors.New("unable to generate access token")),
-			}, errors.New(err.Error())
+		}, errors.New(err.Error())
 	}
 	return &pb.TokenRefreshResponse{
 		Status: http.StatusOK,
-		Token: accesstoken,
+		Token:  accesstoken,
 	}, nil
-	
+
 }
 
-
 func (cr *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteUserResponse, error) {
-	// // Check if the ID is not empty or invalid
-	// if req.Id == 0 {
-	// 	return &pb.DeleteResponse{
-	// 		Status: http.StatusBadRequest,
-	// 		Error:  "Invalid ID",
-	// 	}, nil
-	// }
+	// Check if the ID is not empty or invalid
+	if req.Id == 0 {
+		return &pb.DeleteUserResponse{
+			Status: http.StatusBadRequest,
+			Error:  "Invalid ID",
+		}, nil
+	}
 
 	var user domain.Users
 
-	// // Check if the record exists in the database
-	// result := s.H.DB.First(&user, "id = ?", req.Id)
-	// if result.Error != nil {
-	// 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-	// 		return &pb.DeleteResponse{
-	// 			Status: http.StatusNotFound,
-	// 			Error:  "Record not found",
-	// 		}, nil
-	// 	} else {
-	// 		return &pb.DeleteResponse{
-	// 			Status: http.StatusInternalServerError,
-	// 			Error:  result.Error.Error(),
-	// 		}, nil
-	// 	}
-	// }
+	// Check if the record exists in the database
+	user, err := cr.userUseCase.FindByID(ctx, uint(req.Id))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &pb.DeleteUserResponse{
+				Status: http.StatusNotFound,
+				Error:  "Record not found",
+			}, nil
+		} else {
+			return &pb.DeleteUserResponse{
+				Status: http.StatusInternalServerError,
+				Error:  fmt.Sprint(errors.New("unable to fetch user")),
+			}, nil
+		}
+	}
 
-	// // Delete the record from the database
-	// result = s.H.DB.Delete(&user, req.Id)
-	// if result.Error != nil {
-	// 	return &pb.DeleteResponse{
-	// 		Status: http.StatusInternalServerError,
-	// 		Error:  result.Error.Error(),
-	// 	}, nil
-	// }
+	// Delete the record from the database
+	err = cr.userUseCase.Delete(ctx,int64(req.Id))
+	if err != nil {
+		return &pb.DeleteUserResponse{
+			Status: http.StatusInternalServerError,
+			Error:  fmt.Sprint(errors.New("error in deleting data")),
+		}, nil
+	}
 
 	return &pb.DeleteUserResponse{
 		Status: http.StatusOK,
@@ -300,7 +298,6 @@ func (cr *UserHandler) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*
 
 	return &pb.GetUsersResponse{}, nil
 }
-
 
 func (cr *UserHandler) FindUsers(c *gin.Context) {
 	paramsId := c.Param("id")

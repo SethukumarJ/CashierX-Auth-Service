@@ -23,8 +23,12 @@ func (c *userUseCase) FindByName(ctx context.Context, email string) (domain.User
 }
 
 // Delete implements interfaces.UserUseCase
-func (*userUseCase) Delete(ctx context.Context, user domain.Users) error {
-	panic("unimplemented")
+func (cr *userUseCase) Delete(ctx context.Context, id int64) error {
+	err := cr.userRepo.Delete(ctx,id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func NewUserUseCase(repo interfaces.UserRepository) services.UserUseCase {
