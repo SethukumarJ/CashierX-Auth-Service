@@ -26,10 +26,10 @@ type Response struct {
 	Password string `copier:"must"`
 }
 
-func NewUserHandler(usecase services.UserUseCase,jwtusecase services.JWTUsecase) *UserHandler {
+func NewUserHandler(usecase services.UserUseCase, jwtusecase services.JWTUsecase) *UserHandler {
 	return &UserHandler{
 		userUseCase: usecase,
-		jwtUsecase: jwtusecase,
+		jwtUsecase:  jwtusecase,
 	}
 }
 
@@ -48,7 +48,7 @@ func (cr *UserHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*
 		return &pb.RegisterResponse{
 			Status: http.StatusUnprocessableEntity,
 			Id:     user1.Id,
-			Error: fmt.Sprint(errors.New("email already exist")),
+			Error:  fmt.Sprint(errors.New("email already exist")),
 		}, err
 	}
 	user, err = cr.userUseCase.Register(ctx, user)
@@ -64,11 +64,8 @@ func (cr *UserHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*
 	}, nil
 }
 
-
-
-
 func (cr *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	
+
 	err := cr.userUseCase.VerifyUser(ctx, req.Email, req.Password)
 	if err != nil {
 		return &pb.LoginResponse{
@@ -84,51 +81,81 @@ func (cr *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Log
 			Error:  fmt.Sprintf("error while getting user from db: %s", err.Error()),
 		}, nil
 	}
-	accesstoken, err := cr.jwtUsecase.GenerateAccessToken(uint(user.Id),user.Email)
+	accesstoken, err := cr.jwtUsecase.GenerateAccessToken(uint(user.Id), user.Email)
 	if err != nil {
 		return &pb.LoginResponse{
 			Status: http.StatusUnauthorized,
-			Error: fmt.Sprint(errors.New("failed to generate access token")),
+			Error:  fmt.Sprint(errors.New("failed to generate access token")),
 		}, errors.New(err.Error())
 	}
-	refreshtoken, err := cr.jwtUsecase.GenerateRefreshToken(uint(user.Id),user.Email)
+	refreshtoken, err := cr.jwtUsecase.GenerateRefreshToken(uint(user.Id), user.Email)
 	if err != nil {
 		return &pb.LoginResponse{
 			Status: http.StatusUnauthorized,
-			Error: fmt.Sprint(errors.New("failed to generate refresh token")),
+			Error:  fmt.Sprint(errors.New("failed to generate refresh token")),
 		}, errors.New(err.Error())
 	}
 	return &pb.LoginResponse{
-		Status: http.StatusOK,
-		AccessToken: accesstoken,
+		Status:        http.StatusOK,
+		AccessToken:   accesstoken,
 		RefresshToken: refreshtoken,
 	}, nil
 }
 
 func (cr *UserHandler) Validate(ctx context.Context, req *pb.ValidateRequest) (*pb.ValidateResponse, error) {
-	// claims, err := s.Jwt.ValidateToken(req.Token)
+	ok, claims := cr.jwtUsecase.VerifyToken(req.Token)
+	fmt.Println("claims",claims)
+	if !ok {
+		return &pb.ValidateResponse{
+			Status: http.StatusUnauthorized,
+			Error:  fmt.Sprint(errors.New("token verification failed")),
+		}, nil
+	}
 
-	// if err != nil {
-	// 	return &pb.ValidateResponse{
-	// 		Status: http.StatusBadRequest,
-	// 		Error:  err.Error(),
-	// 	}, nil
-	// }
+	
 
-	var user domain.Users
+	user, err := cr.userUseCase.FindByName(ctx,claims.UserName)
 
-	// if result := s.H.DB.Where(&models.User{Email: claims.Email}).First(&user); result.Error != nil {
-	// 	return &pb.ValidateResponse{
-	// 		Status: http.StatusNotFound,
-	// 		Error:  "User not found",
-	// 	}, nil
-	// }
+	if err != nil {
+		return &pb.ValidateResponse{
+			Status: http.StatusUnauthorized,
+			Error:  fmt.Sprint(errors.New("user not found with token credentials")),
+		}, errors.New(err.Error())
+	}
 
 	return &pb.ValidateResponse{
 		Status: http.StatusOK,
 		UserId: user.Id,
+		Source: fmt.Sprint(claims.Source),
 	}, nil
 }
+
+func (cr *UserHandler) TokenRefresh(ctx context.Context, req *pb.TokenRefreshRequest) (*pb.TokenRefreshResponse, error) {
+	
+	ok, claims := cr.jwtUsecase.VerifyToken(req.Token)
+	if !ok {
+		return &pb.TokenRefreshResponse{
+			Status: http.StatusUnauthorized,
+			Error:  fmt.Sprint(errors.New("token verification failed")),
+		}, nil
+	}
+
+	fmt.Println("//////////////////////////////////", claims.UserName)
+	accesstoken, err := cr.jwtUsecase.GenerateAccessToken(claims.UserId, claims.UserName)
+	
+	if err != nil {
+		return &pb.TokenRefreshResponse{
+			Status: http.StatusUnauthorized,
+			Error:  fmt.Sprint(errors.New("unable to generate access token")),
+			}, errors.New(err.Error())
+	}
+	return &pb.TokenRefreshResponse{
+		Status: http.StatusOK,
+		Token: accesstoken,
+	}, nil
+	
+}
+
 
 func (cr *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteUserResponse, error) {
 	// // Check if the ID is not empty or invalid
@@ -274,44 +301,6 @@ func (cr *UserHandler) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*
 	return &pb.GetUsersResponse{}, nil
 }
 
-func (cr *UserHandler) TokenRefresh(ctx context.Context, req *pb.TokenRefreshRequest) (*pb.TokenRefreshResponse, error) {
-	// // Check if the ID is not empty or invalid
-	// if req.Id == 0 {
-	// 	return &pb.DeleteResponse{
-	// 		Status: http.StatusBadRequest,
-	// 		Error:  "Invalid ID",
-	// 	}, nil
-	// }
-
-	// var user domain.Users
-
-	// // Check if the record exists in the database
-	// result := s.H.DB.First(&user, "id = ?", req.Id)
-	// if result.Error != nil {
-	// 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-	// 		return &pb.DeleteResponse{
-	// 			Status: http.StatusNotFound,
-	// 			Error:  "Record not found",
-	// 		}, nil
-	// 	} else {
-	// 		return &pb.DeleteResponse{
-	// 			Status: http.StatusInternalServerError,
-	// 			Error:  result.Error.Error(),
-	// 		}, nil
-	// 	}
-	// }
-
-	// // Delete the record from the database
-	// result = s.H.DB.Delete(&user, req.Id)
-	// if result.Error != nil {
-	// 	return &pb.DeleteResponse{
-	// 		Status: http.StatusInternalServerError,
-	// 		Error:  result.Error.Error(),
-	// 	}, nil
-	// }
-
-	return &pb.TokenRefreshResponse{}, nil
-}
 
 func (cr *UserHandler) FindUsers(c *gin.Context) {
 	paramsId := c.Param("id")
