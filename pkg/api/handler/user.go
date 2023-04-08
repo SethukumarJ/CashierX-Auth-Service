@@ -43,20 +43,29 @@ func (cr *UserHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*
 		UserName:  req.UserName,
 	}
 
+	// check if email already exists
 	user1, err := cr.userUseCase.FindByName(ctx, user.Email)
 	if err == nil {
-		fmt.Println(errors.New("email already exist"))
 		return &pb.RegisterResponse{
 			Status: http.StatusUnprocessableEntity,
 			Id:     user1.Id,
-			Error:  fmt.Sprint(errors.New("email already exist")),
-		}, err
+			Error:  fmt.Sprint(errors.New("email already exists")),
+		}, nil
 	}
+
+	// register the user
 	user, err = cr.userUseCase.Register(ctx, user)
-	fmt.Println(user)
 	if err != nil {
-		fmt.Println(errors.New("email already exist//////"))
-		return nil, err
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return &pb.RegisterResponse{
+				Status: http.StatusConflict,
+				Error:  fmt.Sprint(errors.New("username already exists")),
+			}, nil
+		}
+		return &pb.RegisterResponse{
+			Status: http.StatusUnprocessableEntity,
+			Error:  fmt.Sprint(errors.New("failed to register user")),
+		}, nil
 	}
 
 	return &pb.RegisterResponse{
@@ -237,42 +246,33 @@ func (cr *UserHandler) FindUser(ctx context.Context, req *pb.FindUserRequest) (*
 }
 
 func (cr *UserHandler) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*pb.GetUsersResponse, error) {
-	// // Check if the ID is not empty or invalid
-	// if req.Id == 0 {
-	// 	return &pb.DeleteResponse{
-	// 		Status: http.StatusBadRequest,
-	// 		Error:  "Invalid ID",
-	// 	}, nil
-	// }
+	// Get all users from the use case
+	users, err := cr.userUseCase.FindAll(ctx)
+	if err != nil {
+		return &pb.GetUsersResponse{
+			Status: http.StatusUnprocessableEntity,
+			Error:  fmt.Sprint(errors.New("unable to fetch data")),
+		}, errors.New(err.Error())
+	}
 
-	// var user domain.Users
+	// Convert domain.Users to pb.User
+	var pbUsers []*pb.User
+	for _, user := range users {
+		pbUser := &pb.User{
+			Id:        user.Id,
+			Email:     user.Email,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			UserName:  user.UserName,
+		}
+		pbUsers = append(pbUsers, pbUser)
+	}
 
-	// // Check if the record exists in the database
-	// result := s.H.DB.First(&user, "id = ?", req.Id)
-	// if result.Error != nil {
-	// 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-	// 		return &pb.DeleteResponse{
-	// 			Status: http.StatusNotFound,
-	// 			Error:  "Record not found",
-	// 		}, nil
-	// 	} else {
-	// 		return &pb.DeleteResponse{
-	// 			Status: http.StatusInternalServerError,
-	// 			Error:  result.Error.Error(),
-	// 		}, nil
-	// 	}
-	// }
-
-	// // Delete the record from the database
-	// result = s.H.DB.Delete(&user, req.Id)
-	// if result.Error != nil {
-	// 	return &pb.DeleteResponse{
-	// 		Status: http.StatusInternalServerError,
-	// 		Error:  result.Error.Error(),
-	// 	}, nil
-	// }
-
-	return &pb.GetUsersResponse{}, nil
+	// Return the response
+	return &pb.GetUsersResponse{
+		Status: http.StatusOK,
+		User:   pbUsers,
+	}, nil
 }
 
 func (cr *UserHandler) FindUsers(c *gin.Context) {

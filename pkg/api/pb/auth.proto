@@ -2,14 +2,7 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "./pkg/pb";
-
-service AuthService {
-  rpc Register(RegisterRequest) returns (RegisterResponse) {}
-  rpc Login(LoginRequest) returns (LoginResponse) {}
-  rpc Validate(ValidateRequest) returns (ValidateResponse) {}
-  rpc Delete(DeleteRequest) returns (DeleteResponse) {}
-}
+option go_package = "./pkg/auth/pb";
 
 service AuthService {
   rpc Register(RegisterRequest) returns (RegisterResponse) {}
@@ -77,7 +70,9 @@ message ValidateResponse {
 
 message GetUsersRequest {}
 message GetUsersResponse {
-  repeated User user = 1;
+  int64 status = 1;
+  string error = 2;
+  repeated User user = 3;
 }
 
 message User {
