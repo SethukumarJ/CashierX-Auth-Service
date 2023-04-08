@@ -183,7 +183,7 @@ func (cr *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest
 	}
 
 	// Delete the record from the database
-	err = cr.userUseCase.Delete(ctx,int64(req.Id))
+	err = cr.userUseCase.Delete(ctx, int64(req.Id))
 	if err != nil {
 		return &pb.DeleteUserResponse{
 			Status: http.StatusInternalServerError,
@@ -197,66 +197,42 @@ func (cr *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest
 	}, nil
 }
 
-// FindAll godoc
-// @summary Get all users
-// @description Get all users
-// @tags users
-// @security ApiKeyAuth
-// @id FindAll
-// @produce json
-// @Router /api/users [get]
-// @response 200 {object} []Response "OK"
-func (cr *UserHandler) FindAll(c *gin.Context) {
-	users, err := cr.userUseCase.FindAll(c.Request.Context())
-
-	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
-	} else {
-		response := []Response{}
-		copier.Copy(&response, &users)
-
-		c.JSON(http.StatusOK, response)
-	}
-}
-
 func (cr *UserHandler) FindUser(ctx context.Context, req *pb.FindUserRequest) (*pb.FindUserResponse, error) {
-	// // Check if the ID is not empty or invalid
-	// if req.Id == 0 {
-	// 	return &pb.DeleteResponse{
-	// 		Status: http.StatusBadRequest,
-	// 		Error:  "Invalid ID",
-	// 	}, nil
-	// }
+	// Check if the ID is not empty or invalid
+	if req.Id == 0 {
+		return &pb.FindUserResponse{
+			Status: http.StatusBadRequest,
+			Error:  "Invalid ID",
+		}, nil
+	}
 
-	// var user domain.Users
+	var user domain.Users
 
-	// // Check if the record exists in the database
-	// result := s.H.DB.First(&user, "id = ?", req.Id)
-	// if result.Error != nil {
-	// 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-	// 		return &pb.DeleteResponse{
-	// 			Status: http.StatusNotFound,
-	// 			Error:  "Record not found",
-	// 		}, nil
-	// 	} else {
-	// 		return &pb.DeleteResponse{
-	// 			Status: http.StatusInternalServerError,
-	// 			Error:  result.Error.Error(),
-	// 		}, nil
-	// 	}
-	// }
-
-	// // Delete the record from the database
-	// result = s.H.DB.Delete(&user, req.Id)
-	// if result.Error != nil {
-	// 	return &pb.DeleteResponse{
-	// 		Status: http.StatusInternalServerError,
-	// 		Error:  result.Error.Error(),
-	// 	}, nil
-	// }
-
+	// Check if the record exists in the database
+	user, err := cr.userUseCase.FindByID(ctx, uint(req.Id))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &pb.FindUserResponse{
+				Status: http.StatusNotFound,
+				Error:  "Record not found",
+			}, nil
+		} else {
+			return &pb.FindUserResponse{
+				Status: http.StatusInternalServerError,
+				Error:  fmt.Sprint(errors.New("unable to fetch user")),
+			}, nil
+		}
+	}
+	data := &pb.FindUser{
+		Id:        user.Id,
+		Email:     user.Email,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		UserName:  user.UserName,
+	}
 	return &pb.FindUserResponse{
 		Status: http.StatusOK,
+		Data:   data,
 	}, nil
 }
 
